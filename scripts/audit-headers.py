@@ -97,6 +97,20 @@ def refuser_ip_privee(hostname: str) -> Optional[str]:
     return None
 
 
+def hsts_max_age(valeur: str) -> Optional[int]:
+    """Extrait max-age (secondes) d'un en-tete HSTS, ou None s'il est absent ou invalide.
+
+    Tolere la casse, les espaces et les guillemets (max-age="31536000") ;
+    ne leve jamais d'exception sur un en-tete mal forme.
+    """
+    for partie in valeur.split(";"):
+        nom, _, brut = partie.strip().partition("=")
+        if nom.strip().lower() == "max-age":
+            brut = brut.strip().strip('"')
+            return int(brut) if brut.isdigit() else None
+    return None
+
+
 def analyser_headers(headers: Dict[str, str]) -> Dict[str, dict]:
     """Evalue chaque en-tete et retourne etat, valeur, points et justification."""
     resultats = {}
@@ -127,8 +141,7 @@ def analyser_headers(headers: Dict[str, str]) -> Dict[str, dict]:
         resultats["strict-transport-security"] = {
             "etat": "absent", "valeur": "", "points": 0,
             "justification": "En-tete absent : pas de politique de transport strict."}
-    elif "max-age" in hsts and int([p for p in hsts.replace(" ", "").split(";")
-                                    if p.startswith("max-age=")][0].split("=")[1]) >= 15552000:
+    elif (hsts_max_age(hsts) or 0) >= 15552000:
         resultats["strict-transport-security"] = {
             "etat": "ok", "valeur": hsts[:120], "points": POIDS["strict-transport-security"],
             "justification": "HSTS present avec max-age >= 180 jours."}
